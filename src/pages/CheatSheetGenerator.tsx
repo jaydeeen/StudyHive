@@ -4,16 +4,71 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import API from '../API'
 
 const CheatSheetGenerator: React.FC = () => {
-  const [notes, setNotes] = useState('')
-  const [topic, setTopic] = useState('')
-  const [generatedSheet, setGeneratedSheet] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [processingStep, setProcessingStep] = useState('')
-  const [downloadingPdf, setDownloadingPdf] = useState(false)
-  const contentRef = useRef<HTMLDivElement>(null)
+const [notes, setNotes] = useState('')
+const [topic, setTopic] = useState('')
+const [generatedSheet, setGeneratedSheet] = useState('')
+const [loading, setLoading] = useState(false)
+const [copied, setCopied] = useState(false)
+const [processingStep, setProcessingStep] = useState('')
+const [downloadingPdf, setDownloadingPdf] = useState(false)
+const contentRef = useRef<HTMLDivElement>(null)
+
+let aiType = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free";
+let prompt = "Task: You are given a block of text. Summarize its content into a JSON object with a maximum of 10 array items, each representing one distinct definition or concept. No explanation or your thought process needed in your response. Just the JSON output. Output Format: {\"definitions\": [{\"term\": \"string\", \"definition\":\"string\"} // .. up to 10 items ] } Input Text to Summarize: Text to summarise:" 
+const [inputValue, setInputValue] = useState('');
+
+const onCheatSheetCreation = async () => {
+
+    setLoading(true)
+    setGeneratedSheet('')
+    
+    console.log(inputValue);
+      const response = await fetch("https://api.together.xyz/v1/chat/completions", {
+      method: 'POST',
+      body: JSON.stringify({model: aiType, messages: [{role: "user", content: prompt + notes}]}),
+      headers: {'Content-Type': 'application/json', 'Authorization': "Bearer " + API} 
+    });
+
+   
+
+    if (!response.ok) 
+    { 
+        console.error("Error12332131");
+    }
+    else{
+
+      const result = await response.json();
+      const resultJSON = JSON.parse(result['choices'][0]['message']['content']);
+      console.log(resultJSON)
+
+        document.getElementById("cheatsheetSection").style.display = "block";
+        document.getElementById("uploadSection").style.display = 'none';
+
+        for(let i = 0; i < 8; i++) {
+
+          const header = document.getElementById("header" + (i + 1));
+          const definition = document.getElementById("def" + (i + 1));
+
+          const currentResult = resultJSON['definitions'][i];
+
+          console.log(currentResult);
+
+          const currentResultHeader = currentResult['term'];
+          const currentResultDef = currentResult['definition'];
+
+          header.textContent = currentResultHeader;
+          definition.textContent = currentResultDef;
+
+
+
+        }
+
+
+    }
+  }
 
   const handleGenerate = async () => {
     if (!notes.trim() || !topic.trim()) {
@@ -173,148 +228,290 @@ ${generatePracticeAreas(notes)}
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl shadow-sm p-6 text-white">
-        <div className="flex items-center mb-2">
-          <Brain className="h-8 w-8 mr-3" />
-          <h1 className="text-3xl font-bold">Cheat Sheet Generator</h1>
-        </div>
-        <p className="text-primary-100 text-lg">Transform your study notes into organized, AI-powered cheat sheets</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Input Section */}
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center mb-6">
-            <Upload className="h-6 w-6 mr-2 text-primary-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Upload Your Notes</h2>
+    <div>
+      <div id="uploadSection">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl shadow-sm p-6 text-white">
+            <div className="flex items-center mb-2">
+              <Brain className="h-8 w-8 mr-3" />
+              <h1 className="text-3xl font-bold">Cheat Sheet Generator</h1>
+            </div>
+            <p className="text-primary-100 text-lg">Transform your study notes into organized, AI-powered cheat sheets</p>
           </div>
-          
-          <div className="space-y-6">
-            {/* Topic Input */}
 
-            {/* Notes Text Area */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                📝 Paste Your Notes Here
-              </label>
-              <div className="relative">
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-base"
-                  placeholder="Copy and paste your entire study notes, lecture notes, or any study material here. The AI will analyze and organize it into a comprehensive cheat sheet."
-                />
-                <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-                  {notes.length} characters
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Input Section */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+              <div className="flex items-center mb-6">
+                <Upload className="h-6 w-6 mr-2 text-primary-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Upload Your Notes</h2>
+              </div>
+              
+              <div className="space-y-6" >
+                {/* Topic Input */}
+
+                {/* Notes Text Area */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    📝 Paste Your Notes Here
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-base"
+                      placeholder="Copy and paste your entire study notes, lecture notes, or any study material here. The AI will analyze and organize it into a comprehensive cheat sheet."
+                    />
+                    <div className="absolute bottom-3 right-3 text-xs text-gray-400">
+                      {notes.length} characters
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    💡 Tip: Include all your notes, definitions, formulas, and key concepts
+                  </p>
+                </div>
+
+                {/* Generate Button */}
+                <button
+                  onClick={onCheatSheetCreation}
+                  disabled={!notes.trim()}
+                  className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-4 rounded-lg font-semibold text-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg hover:shadow-xl"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3" />
+                      {processingStep}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-6 w-6 mr-3" />
+                      Generate Cheat Sheet
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Output Section */}
+            {/* <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <FileText className="h-6 w-6 mr-2 text-primary-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">Generated Cheat Sheet</h2>
+                </div>
+                {generatedSheet && (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={handleCopy}
+                      className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Copy to clipboard"
+                    >
+                      {copied ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
+                      Copy
+                    </button>
+                    <button
+                      onClick={handleDownloadPdf}
+                      disabled={downloadingPdf}
+                      className="flex items-center px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                      title="Download as PDF"
+                    >
+                      {downloadingPdf ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-1" />
+                      ) : (
+                        <FileText className="h-4 w-4 mr-1" />
+                      )}
+                      PDF
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {generatedSheet ? (
+                <div className="bg-gray-50 rounded-lg p-6 overflow-auto max-h-[600px] border border-gray-200">
+                  <div ref={contentRef} className="prose prose-sm max-w-none bg-white p-6 rounded-lg">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {generatedSheet}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-12 text-center border-2 border-dashed border-gray-300">
+                  <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg mb-2">Ready to generate your cheat sheet</p>
+                  <p className="text-sm text-gray-400">Enter your topic and paste your notes to get started</p>
+                </div>
+              )}
+            </div> */}
+          </div>
+
+          {/* Instructions */}
+          <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+            <div className="flex items-center mb-4">
+              <Zap className="h-5 w-5 mr-2 text-blue-600" />
+              <h3 className="text-lg font-semibold text-blue-900">How to Use</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-800">
+              <div className="flex items-start">
+                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">1</span>
+                <div>
+                  <strong>Find Topic:</strong> Find a topic that you want to study for (Chemistry, Biology, etc)
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mt-2">
-                💡 Tip: Include all your notes, definitions, formulas, and key concepts
-              </p>
+              <div className="flex items-start">
+                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">2</span>
+                <div>
+                  <strong>Paste Notes:</strong> Copy and paste all your study materials into the text area
+                </div>
+              </div>
+              <div className="flex items-start">
+                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">3</span>
+                <div>
+                  <strong>Generate & Copy:</strong> Click generate and copy the result to your study documents
+                </div>
+              </div>
             </div>
-
-            {/* Generate Button */}
-            <button
-              onClick={handleGenerate}
-              disabled={loading || !notes.trim() || !topic.trim()}
-              className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-4 rounded-lg font-semibold text-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg hover:shadow-xl"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3" />
-                  {processingStep}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-6 w-6 mr-3" />
-                  Generate Cheat Sheet
-                </>
-              )}
-            </button>
           </div>
         </div>
+      </div>
+
+      <div id="cheatsheetSection" style={{display: "none"}}><div className="max-w-6xl mx-auto space-y-6">
+  
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Input Section */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4" id="header1"></h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" id="def1">
+                
+              </label>
+            </div>
+
+          </div>
+
+          
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4" id="header2"></h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" id="def2">
+                
+              </label>
+            </div>
+
+          </div>
+
+          
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4" id="header3"></h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" id="def3">
+                
+              </label>
+            </div>
+
+          </div>
+
+          
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4" id="header4"></h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" id="def4">
+                
+              </label>
+            </div>
+
+          </div>
+
+          
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4" id="header5"></h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" id="def5"> 
+                
+              </label>
+            </div>
+
+          </div>
+
+          
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4" id="header6"></h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" id="def6">
+                
+              </label>
+            </div>
+
+          </div>
+
+          
+
+          
+        </div>
+
+         <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4" id="header7"></h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" id="def7">
+                
+              </label>
+            </div>
+
+          </div>
+
+          
+
+          
+        </div>
+
+         <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4" id="header8"></h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" id="def8">
+                
+              </label>
+            </div>
+
+          </div>
+
+          
+
+          
+        </div>
+
+        
 
         {/* Output Section */}
-        {/* <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <FileText className="h-6 w-6 mr-2 text-primary-600" />
-              <h2 className="text-xl font-semibold text-gray-900">Generated Cheat Sheet</h2>
-            </div>
-            {generatedSheet && (
-              <div className="flex space-x-2">
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Copy to clipboard"
-                >
-                  {copied ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
-                  Copy
-                </button>
-                <button
-                  onClick={handleDownloadPdf}
-                  disabled={downloadingPdf}
-                  className="flex items-center px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                  title="Download as PDF"
-                >
-                  {downloadingPdf ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-1" />
-                  ) : (
-                    <FileText className="h-4 w-4 mr-1" />
-                  )}
-                  PDF
-                </button>
-              </div>
-            )}
-          </div>
-
-          {generatedSheet ? (
-            <div className="bg-gray-50 rounded-lg p-6 overflow-auto max-h-[600px] border border-gray-200">
-              <div ref={contentRef} className="prose prose-sm max-w-none bg-white p-6 rounded-lg">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {generatedSheet}
-                </ReactMarkdown>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg p-12 text-center border-2 border-dashed border-gray-300">
-              <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg mb-2">Ready to generate your cheat sheet</p>
-              <p className="text-sm text-gray-400">Enter your topic and paste your notes to get started</p>
-            </div>
-          )}
-        </div> */}
+       
       </div>
-
-      {/* Instructions */}
-      <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-        <div className="flex items-center mb-4">
-          <Zap className="h-5 w-5 mr-2 text-blue-600" />
-          <h3 className="text-lg font-semibold text-blue-900">How to Use</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-800">
-          <div className="flex items-start">
-            <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">1</span>
-            <div>
-              <strong>Enter Topic:</strong> Specify what you're studying (e.g., "Calculus", "World War II")
-            </div>
-          </div>
-          <div className="flex items-start">
-            <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">2</span>
-            <div>
-              <strong>Paste Notes:</strong> Copy and paste all your study materials into the text area
-            </div>
-          </div>
-          <div className="flex items-start">
-            <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">3</span>
-            <div>
-              <strong>Generate & Copy:</strong> Click generate and copy the result to your study documents
-            </div>
-          </div>
-        </div>
-      </div>
+    </div></div>
     </div>
   )
 }

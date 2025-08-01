@@ -56,11 +56,11 @@ function AppContent() {
         <Route
           path="/cheat-sheet"
           element={
-            <ProtectedRoute>
-              <Layout>
+            // <ProtectedRoute>
+            //   <Layout>
                 <CheatSheetGenerator />
-              </Layout>
-            </ProtectedRoute>
+              /* </Layout>
+            </ProtectedRoute> */
           }
         />
         <Route

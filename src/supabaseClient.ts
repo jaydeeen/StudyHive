@@ -1,0 +1,7 @@
+import { createClient } from '@supabase/supabase-js'
+
+// Replace these with your Supabase credentials
+const supabaseUrl = 'https://gtmphetshsapfsyfjdfu.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bXBoZXRzaHNhcGZzeWZqZGZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQwMzIwMDEsImV4cCI6MjA2OTYwODAwMX0.kVUkKk_Wn1Qo4Vwi8Eme0Sl0f9rn37YJNQaM9U5IqUI.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bXBoZXRzaHNhcGZzeWZqZGZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQwMzIwMDEsImV4cCI6MjA2OTYwODAwMX0.kVUkKk_Wn1Qo4Vwi8Eme0Sl0f9rn37YJNQaM9U5IqUI'
+
+export const supabase = createClient(supabaseUrl, supabaseKey)

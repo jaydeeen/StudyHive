@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Users, Clock, Trophy, MessageSquare, Video, Plus, Play, Pause, RotateCw } from 'lucide-react'
+import { Users, Clock, Trophy, MessageSquare, Video, Plus, Play, Pause, RotateCw, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 interface StudyRoom {
@@ -21,8 +21,14 @@ interface Message {
   timestamp: Date
 }
 
+interface Timer {
+  room_id: string
+  time_remaining: number
+  is_running: boolean
+}
+
 const StudyGroups: React.FC = () => {
-  const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null)
+  const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null) // Track the room user is in
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60) // 25 minutes in seconds
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
@@ -42,8 +48,12 @@ const StudyGroups: React.FC = () => {
     }
   ])
   const [newMessage, setNewMessage] = useState('')
+  const [showCreateRoomForm, setShowCreateRoomForm] = useState(false) // State to toggle the form visibility
+  const [newRoomName, setNewRoomName] = useState('') // State to hold room name input
+  const [newRoomSubject, setNewRoomSubject] = useState('') // State to hold room subject input
+  const [newRoomMaxParticipants, setNewRoomMaxParticipants] = useState(10) // State to hold max participants
 
-  const studyRooms: StudyRoom[] = [
+  const [studyRooms, setStudyRooms] = useState<StudyRoom[]>([
     {
       id: '1',
       name: 'Calculus Study Group',
@@ -74,17 +84,17 @@ const StudyGroups: React.FC = () => {
       host: 'Emily Davis',
       xpReward: 60
     }
-  ]
+  ])
 
   React.useEffect(() => {
     let interval: NodeJS.Timeout
     if (isTimerRunning && pomodoroTime > 0) {
       interval = setInterval(() => {
-        setPomodoroTime(time => time - 1)
+        setPomodoroTime((time) => time - 1)
       }, 1000)
     } else if (pomodoroTime === 0) {
       setIsTimerRunning(false)
-      // Play notification sound or show alert
+      alert('Time to take a break!')
     }
     return () => clearInterval(interval)
   }, [isTimerRunning, pomodoroTime])
@@ -111,6 +121,67 @@ const StudyGroups: React.FC = () => {
     }
   }
 
+  // Function to handle room creation
+  const handleCreateRoom = () => {
+    if (newRoomName && newRoomSubject && newRoomMaxParticipants > 0) {
+      const newRoom: StudyRoom = {
+        id: Date.now().toString(),
+        name: newRoomName,
+        subject: newRoomSubject,
+        participants: 1, // Assuming the creator is part of the room
+        maxParticipants: newRoomMaxParticipants,
+        isActive: true,
+        host: 'You',
+        xpReward: 50
+      }
+      setStudyRooms([...studyRooms, newRoom])
+      setShowCreateRoomForm(false)
+      setNewRoomName('')
+      setNewRoomSubject('')
+      setNewRoomMaxParticipants(10)
+    }
+  }
+
+  // Function to delete a study room
+  const handleDeleteRoom = (roomId: string) => {
+    const updatedRooms = studyRooms.filter(room => room.id !== roomId)
+    setStudyRooms(updatedRooms)
+  }
+
+  // Function to handle joining a study room
+  const handleJoinRoom = (roomId: string) => {
+    if (activeRoom) {
+      // If already in a room, leave the current room first
+      handleLeaveRoom()
+    }
+
+    setStudyRooms((prevRooms) =>
+      prevRooms.map((room) =>
+        room.id === roomId && room.participants < room.maxParticipants
+          ? { ...room, participants: room.participants + 1 } // Increase the participants
+          : room
+      )
+    )
+    const roomToJoin = studyRooms.find(room => room.id === roomId)
+    if (roomToJoin) {
+      setActiveRoom(roomToJoin) // Set the room as the active room
+    }
+  }
+
+  // Function to leave the current room
+  const handleLeaveRoom = () => {
+    if (activeRoom && activeRoom.participants > 0) {
+      setStudyRooms((prevRooms) =>
+        prevRooms.map((room) =>
+          room.id === activeRoom.id && room.participants > 0
+            ? { ...room, participants: room.participants - 1 } // Decrease the participants count
+            : room
+        )
+      )
+      setActiveRoom(null) // Set active room to null (leave the group)
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="bg-white rounded-xl shadow-sm p-6">
@@ -127,7 +198,10 @@ const StudyGroups: React.FC = () => {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Active Study Rooms</h2>
-              <button className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+              <button
+                className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                onClick={() => setShowCreateRoomForm(true)}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Room
               </button>
@@ -165,6 +239,20 @@ const StudyGroups: React.FC = () => {
                         <Trophy className="h-4 w-4 mr-1" />
                         <span>{room.xpReward} XP</span>
                       </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room.id) }} // Stop event propagation to prevent room selection
+                        className="text-red-600 hover:text-red-700 mt-2"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                      {/* Join Button */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleJoinRoom(room.id) }}
+                        disabled={room.participants >= room.maxParticipants || activeRoom !== null}
+                        className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg disabled:bg-gray-300"
+                      >
+                        {room.participants >= room.maxParticipants ? 'Room Full' : 'Join Room'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -177,9 +265,12 @@ const StudyGroups: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">{activeRoom.name}</h3>
-                <button className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
-                  <Video className="h-4 w-4 mr-2" />
-                  Join Video Call
+                <button
+                  onClick={handleLeaveRoom} // Leave room button
+                  disabled={activeRoom.participants === 0}
+                  className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Leave Room
                 </button>
               </div>
 
@@ -268,7 +359,7 @@ const StudyGroups: React.FC = () => {
                   25 min
                 </button>
                 <button
-                  onClick={() => setPomodoroTime(5 * 60)}
+                  onClick={() => setPomodoroTime(0.5 * 60)}
                   className="py-2 px-3 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium"
                 >
                   5 min
@@ -303,8 +394,60 @@ const StudyGroups: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Create Room Form Modal */}
+      {showCreateRoomForm && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h3 className="text-xl font-semibold mb-4">Create New Study Room</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-600">Room Name</label>
+              <input
+                type="text"
+                value={newRoomName}
+                onChange={(e) => setNewRoomName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-600">Subject</label>
+              <input
+                type="text"
+                value={newRoomSubject}
+                onChange={(e) => setNewRoomSubject(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-600">Max Participants</label>
+              <input
+                type="number"
+                value={newRoomMaxParticipants}
+                onChange={(e) => setNewRoomMaxParticipants(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                min={1}
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setShowCreateRoomForm(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateRoom}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg"
+              >
+                Create Room
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default StudyGroups
+
