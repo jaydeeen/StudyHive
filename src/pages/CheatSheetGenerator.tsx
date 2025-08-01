@@ -193,18 +193,6 @@ ${generatePracticeAreas(notes)}
           
           <div className="space-y-6">
             {/* Topic Input */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                📖 Study Topic
-              </label>
-              <input
-                type="text"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg"
-                placeholder="e.g., Calculus, World War II, Python Programming"
-              />
-            </div>
 
             {/* Notes Text Area */}
             <div>
@@ -249,7 +237,7 @@ ${generatePracticeAreas(notes)}
         </div>
 
         {/* Output Section */}
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+        {/* <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <FileText className="h-6 w-6 mr-2 text-primary-600" />
@@ -297,7 +285,7 @@ ${generatePracticeAreas(notes)}
               <p className="text-sm text-gray-400">Enter your topic and paste your notes to get started</p>
             </div>
           )}
-        </div>
+        </div> */}
       </div>
 
       {/* Instructions */}
