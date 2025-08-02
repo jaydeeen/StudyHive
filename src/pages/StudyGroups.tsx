@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import { Users, Clock, Trophy, MessageSquare, Video, Plus, Play, Pause, RotateCw, Trash2 } from 'lucide-react'
+import { Users, Clock, Trophy, MessageSquare, Video, Plus, Play, Pause, RotateCw, Trash2, Star, Zap } from 'lucide-react'
 import { format } from 'date-fns'
+import { useStudy } from '../contexts/StudyContext'
 
 interface StudyRoom {
   id: string
@@ -27,10 +28,21 @@ interface Timer {
   is_running: boolean
 }
 
+interface XPNotification {
+  id: string
+  amount: number
+  message: string
+  type: 'success' | 'bonus'
+}
+
 const StudyGroups: React.FC = () => {
-  const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null) // Track the room user is in
+  const { awardXPForPomodoro, totalXP, xpRewards } = useStudy()
+  const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null)
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60) // 25 minutes in seconds
   const [isTimerRunning, setIsTimerRunning] = useState(false)
+  const [originalTime, setOriginalTime] = useState(25 * 60) // Track the original timer duration
+  const [isTimerCompleted, setIsTimerCompleted] = useState(false) // Prevent double XP awards
+  const [xpNotifications, setXpNotifications] = useState<XPNotification[]>([])
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -48,10 +60,10 @@ const StudyGroups: React.FC = () => {
     }
   ])
   const [newMessage, setNewMessage] = useState('')
-  const [showCreateRoomForm, setShowCreateRoomForm] = useState(false) // State to toggle the form visibility
-  const [newRoomName, setNewRoomName] = useState('') // State to hold room name input
-  const [newRoomSubject, setNewRoomSubject] = useState('') // State to hold room subject input
-  const [newRoomMaxParticipants, setNewRoomMaxParticipants] = useState(10) // State to hold max participants
+  const [showCreateRoomForm, setShowCreateRoomForm] = useState(false)
+  const [newRoomName, setNewRoomName] = useState('')
+  const [newRoomSubject, setNewRoomSubject] = useState('')
+  const [newRoomMaxParticipants, setNewRoomMaxParticipants] = useState(10)
 
   const [studyRooms, setStudyRooms] = useState<StudyRoom[]>([
     {
@@ -86,15 +98,59 @@ const StudyGroups: React.FC = () => {
     }
   ])
 
+  // Calculate XP earned today
+  const today = new Date().toISOString().split('T')[0]
+  const xpEarnedToday = xpRewards
+    .filter(reward => reward.date === today)
+    .reduce((sum, reward) => sum + reward.amount, 0)
+
+  // Handle timer completion and XP award
+  const handleTimerComplete = async () => {
+    if (originalTime > 0 && !isTimerCompleted) {
+      setIsTimerCompleted(true) // Prevent double execution
+      
+      try {
+        const xpEarned = await awardXPForPomodoro(originalTime, activeRoom?.name)
+        
+        // Show XP notification
+        const notification: XPNotification = {
+          id: Date.now().toString(),
+          amount: xpEarned,
+          message: `🎉 +${xpEarned} XP earned for completing your Pomodoro session!`,
+          type: 'success'
+        }
+        
+        setXpNotifications(prev => [notification, ...prev])
+        
+        // Auto-remove notification after 5 seconds
+        setTimeout(() => {
+          setXpNotifications(prev => prev.filter(n => n.id !== notification.id))
+        }, 5000)
+        
+        // Show success message
+        alert(`🎉 Great job! You earned ${xpEarned} XP for completing your ${Math.floor(originalTime / 60)}-minute Pomodoro session!`)
+        
+      } catch (error) {
+        console.error('Error awarding XP:', error)
+        alert('Error awarding XP. Please try again.')
+        setIsTimerCompleted(false) // Reset on error
+      }
+    }
+  }
+
   React.useEffect(() => {
     let interval: NodeJS.Timeout
     if (isTimerRunning && pomodoroTime > 0) {
       interval = setInterval(() => {
-        setPomodoroTime((time) => time - 1)
+        setPomodoroTime((time) => {
+          if (time <= 1) {
+            setIsTimerRunning(false)
+            handleTimerComplete()
+            return 0
+          }
+          return time - 1
+        })
       }, 1000)
-    } else if (pomodoroTime === 0) {
-      setIsTimerRunning(false)
-      alert('Time to take a break!')
     }
     return () => clearInterval(interval)
   }, [isTimerRunning, pomodoroTime])
@@ -121,14 +177,13 @@ const StudyGroups: React.FC = () => {
     }
   }
 
-  // Function to handle room creation
   const handleCreateRoom = () => {
     if (newRoomName && newRoomSubject && newRoomMaxParticipants > 0) {
       const newRoom: StudyRoom = {
         id: Date.now().toString(),
         name: newRoomName,
         subject: newRoomSubject,
-        participants: 1, // Assuming the creator is part of the room
+        participants: 1,
         maxParticipants: newRoomMaxParticipants,
         isActive: true,
         host: 'You',
@@ -142,54 +197,102 @@ const StudyGroups: React.FC = () => {
     }
   }
 
-  // Function to delete a study room
   const handleDeleteRoom = (roomId: string) => {
     const updatedRooms = studyRooms.filter(room => room.id !== roomId)
     setStudyRooms(updatedRooms)
   }
 
-  // Function to handle joining a study room
   const handleJoinRoom = (roomId: string) => {
     if (activeRoom) {
-      // If already in a room, leave the current room first
       handleLeaveRoom()
     }
 
     setStudyRooms((prevRooms) =>
       prevRooms.map((room) =>
         room.id === roomId && room.participants < room.maxParticipants
-          ? { ...room, participants: room.participants + 1 } // Increase the participants
+          ? { ...room, participants: room.participants + 1 }
           : room
       )
     )
     const roomToJoin = studyRooms.find(room => room.id === roomId)
     if (roomToJoin) {
-      setActiveRoom(roomToJoin) // Set the room as the active room
+      setActiveRoom(roomToJoin)
     }
   }
 
-  // Function to leave the current room
   const handleLeaveRoom = () => {
     if (activeRoom && activeRoom.participants > 0) {
       setStudyRooms((prevRooms) =>
         prevRooms.map((room) =>
           room.id === activeRoom.id && room.participants > 0
-            ? { ...room, participants: room.participants - 1 } // Decrease the participants count
+            ? { ...room, participants: room.participants - 1 }
             : room
         )
       )
-      setActiveRoom(null) // Set active room to null (leave the group)
+      setActiveRoom(null)
     }
+  }
+
+  const handleTimerStart = () => {
+    setIsTimerRunning(true)
+    setIsTimerCompleted(false) // Reset completion state when starting
+  }
+
+  const handleTimerPause = () => {
+    setIsTimerRunning(false)
+  }
+
+  const handleTimerReset = () => {
+    setPomodoroTime(originalTime)
+    setIsTimerRunning(false)
+    setIsTimerCompleted(false) // Reset completion state when resetting
+  }
+
+  const handleTimerDurationChange = (duration: number) => {
+    setPomodoroTime(duration)
+    setOriginalTime(duration)
+    setIsTimerRunning(false)
+    setIsTimerCompleted(false) // Reset completion state when changing duration
   }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* XP Notifications */}
+      {xpNotifications.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 space-y-2">
+          {xpNotifications.map((notification) => (
+            <div
+              key={notification.id}
+              className={`bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-3 animate-in slide-in-from-right duration-300`}
+            >
+              <Star className="h-5 w-5" />
+              <div>
+                <div className="font-semibold">+{notification.amount} XP</div>
+                <div className="text-sm opacity-90">{notification.message}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center">
           <Users className="h-6 w-6 mr-2 text-primary-600" />
           Collaborative Study Groups
         </h1>
         <p className="text-gray-600">Join study rooms with Pomodoro timers, earn XP, and collaborate with peers</p>
+        
+        {/* XP Display */}
+        <div className="mt-4 flex items-center space-x-4">
+          <div className="flex items-center space-x-2 bg-yellow-50 px-4 py-2 rounded-lg">
+            <Trophy className="h-5 w-5 text-yellow-600" />
+            <span className="font-semibold text-yellow-800">{totalXP.toLocaleString()} XP</span>
+          </div>
+          <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg">
+            <Zap className="h-5 w-5 text-blue-600" />
+            <span className="text-sm text-blue-800">Earn XP with Pomodoro sessions!</span>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -240,12 +343,11 @@ const StudyGroups: React.FC = () => {
                         <span>{room.xpReward} XP</span>
                       </div>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room.id) }} // Stop event propagation to prevent room selection
+                        onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room.id) }}
                         className="text-red-600 hover:text-red-700 mt-2"
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>
-                      {/* Join Button */}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleJoinRoom(room.id) }}
                         disabled={room.participants >= room.maxParticipants || activeRoom !== null}
@@ -266,7 +368,7 @@ const StudyGroups: React.FC = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">{activeRoom.name}</h3>
                 <button
-                  onClick={handleLeaveRoom} // Leave room button
+                  onClick={handleLeaveRoom}
                   disabled={activeRoom.participants === 0}
                   className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
@@ -331,7 +433,7 @@ const StudyGroups: React.FC = () => {
 
               <div className="flex items-center justify-center space-x-4 mb-6">
                 <button
-                  onClick={() => setIsTimerRunning(!isTimerRunning)}
+                  onClick={isTimerRunning ? handleTimerPause : handleTimerStart}
                   className={`p-3 rounded-full ${
                     isTimerRunning
                       ? 'bg-red-600 hover:bg-red-700'
@@ -341,10 +443,7 @@ const StudyGroups: React.FC = () => {
                   {isTimerRunning ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
                 </button>
                 <button
-                  onClick={() => {
-                    setPomodoroTime(25 * 60)
-                    setIsTimerRunning(false)
-                  }}
+                  onClick={handleTimerReset}
                   className="p-3 rounded-full bg-gray-600 hover:bg-gray-700 text-white transition-colors"
                 >
                   <RotateCw className="h-6 w-6" />
@@ -353,23 +452,34 @@ const StudyGroups: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-2">
                 <button
-                  onClick={() => setPomodoroTime(25 * 60)}
+                  onClick={() => handleTimerDurationChange(25 * 60)}
                   className="py-2 px-3 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium"
                 >
                   25 min
                 </button>
                 <button
-                  onClick={() => setPomodoroTime(0.5 * 60)}
+                  onClick={() => handleTimerDurationChange(0.1 * 60)}
                   className="py-2 px-3 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium"
                 >
                   5 min
                 </button>
                 <button
-                  onClick={() => setPomodoroTime(15 * 60)}
+                  onClick={() => handleTimerDurationChange(15 * 60)}
                   className="py-2 px-3 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium"
                 >
                   15 min
                 </button>
+              </div>
+
+              {/* XP Info */}
+              <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+                <div className="flex items-center justify-center space-x-2 text-sm text-yellow-800">
+                  <Trophy className="h-4 w-4" />
+                  <span>Complete timer to earn XP!</span>
+                </div>
+                <div className="text-xs text-yellow-600 mt-1 text-center">
+                  {Math.floor(originalTime / 60)} min = ~{Math.max(Math.floor(originalTime / 60), 10)} XP
+                </div>
               </div>
             </div>
           </div>
@@ -388,7 +498,11 @@ const StudyGroups: React.FC = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">XP Earned Today</span>
-                <span className="font-semibold text-yellow-600">+250 XP</span>
+                <span className="font-semibold text-yellow-600">+{xpEarnedToday} XP</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Total XP</span>
+                <span className="font-semibold text-green-600">{totalXP.toLocaleString()} XP</span>
               </div>
             </div>
           </div>

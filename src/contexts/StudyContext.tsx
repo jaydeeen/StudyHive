@@ -29,6 +29,15 @@ interface StudySession {
   date: string
 }
 
+interface XPReward {
+  id: string
+  amount: number
+  source: 'pomodoro' | 'study_session' | 'deadline_completion' | 'streak_bonus'
+  description: string
+  date: string
+  sessionDuration?: number // For Pomodoro sessions
+}
+
 interface StudyData {
   totalXP: number
   studyStreak: number
@@ -47,6 +56,7 @@ interface StudyContextType {
   studySessions: StudySession[]
   studyData: StudyData
   loading: boolean
+  xpRewards: XPReward[]
   
   // Course methods
   addCourse: (course: Omit<Course, 'id'>) => Promise<void>
@@ -60,6 +70,12 @@ interface StudyContextType {
   
   // Study session methods
   addStudySession: (session: Omit<StudySession, 'id' | 'xpEarned'>) => Promise<void>
+  
+  // XP Reward methods
+  awardXPForPomodoro: (duration: number, roomName?: string) => Promise<number>
+  awardXPForStudySession: (duration: number, courseName?: string) => Promise<number>
+  awardXPForDeadlineCompletion: (deadlineTitle: string) => Promise<number>
+  awardStreakBonus: (streakDays: number) => Promise<number>
   
   // Data refresh
   refreshData: () => Promise<void>
@@ -94,11 +110,20 @@ const sampleStudySessions: StudySession[] = [
   { id: '3', courseId: '3', duration: 180, notes: 'Implemented sorting algorithms', xpEarned: 180, date: '2024-01-06' }
 ]
 
+const sampleXPRewards: XPReward[] = [
+  { id: '1', amount: 120, source: 'study_session', description: 'Mathematics study session', date: '2024-01-08', sessionDuration: 120 },
+  { id: '2', amount: 90, source: 'study_session', description: 'Physics study session', date: '2024-01-07', sessionDuration: 90 },
+  { id: '3', amount: 180, source: 'study_session', description: 'Computer Science study session', date: '2024-01-06', sessionDuration: 180 },
+  { id: '4', amount: 50, source: 'pomodoro', description: '25-minute Pomodoro session', date: '2024-01-08', sessionDuration: 1500 },
+  { id: '5', amount: 30, source: 'pomodoro', description: '15-minute Pomodoro session', date: '2024-01-07', sessionDuration: 900 }
+]
+
 export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, isAuthenticated } = useAuth()
   const [courses, setCourses] = useState<Course[]>([])
   const [deadlines, setDeadlines] = useState<Deadline[]>([])
   const [studySessions, setStudySessions] = useState<StudySession[]>([])
+  const [xpRewards, setXpRewards] = useState<XPReward[]>([])
   const [studyData, setStudyData] = useState<StudyData>({
     totalXP: 0,
     studyStreak: 0,
@@ -115,6 +140,7 @@ export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setCourses([])
       setDeadlines([])
       setStudySessions([])
+      setXpRewards([])
       setStudyData({
         totalXP: 0,
         studyStreak: 0,
@@ -136,14 +162,16 @@ export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await Promise.all([
           fetchCourses(),
           fetchDeadlines(),
-          fetchStudySessions()
+          fetchStudySessions(),
+          fetchXPRewards()
         ])
       } else {
         // Use sample data for demonstration
         setCourses(sampleCourses)
         setDeadlines(sampleDeadlines)
         setStudySessions(sampleStudySessions)
-        calculateStudyData(sampleStudySessions)
+        setXpRewards(sampleXPRewards)
+        calculateStudyData(sampleStudySessions, sampleXPRewards)
       }
     } catch (error) {
       console.error('Error refreshing data:', error)
@@ -151,7 +179,8 @@ export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setCourses(sampleCourses)
       setDeadlines(sampleDeadlines)
       setStudySessions(sampleStudySessions)
-      calculateStudyData(sampleStudySessions)
+      setXpRewards(sampleXPRewards)
+      calculateStudyData(sampleStudySessions, sampleXPRewards)
     } finally {
       setLoading(false)
     }
@@ -191,16 +220,24 @@ export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       // For demo purposes, always use sample data
       setStudySessions(sampleStudySessions)
-      calculateStudyData(sampleStudySessions)
     } catch (error) {
       console.error('Error fetching study sessions:', error)
       setStudySessions(sampleStudySessions)
-      calculateStudyData(sampleStudySessions)
     }
   }
 
-  const calculateStudyData = (sessions: StudySession[]) => {
-    const totalXP = sessions.reduce((sum, session) => sum + session.xpEarned, 0)
+  const fetchXPRewards = async () => {
+    try {
+      // For demo purposes, always use sample data
+      setXpRewards(sampleXPRewards)
+    } catch (error) {
+      console.error('Error fetching XP rewards:', error)
+      setXpRewards(sampleXPRewards)
+    }
+  }
+
+  const calculateStudyData = (sessions: StudySession[], rewards: XPReward[]) => {
+    const totalXP = rewards.reduce((sum, reward) => sum + reward.amount, 0)
     const totalMinutes = sessions.reduce((sum, session) => sum + session.duration, 0)
     const hoursStudied = (totalMinutes / 60).toFixed(1)
     
@@ -218,6 +255,132 @@ export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       hoursStudied,
       goalsCompleted
     })
+  }
+
+  // XP Reward methods
+  const awardXPForPomodoro = async (duration: number, roomName?: string): Promise<number> => {
+    try {
+      // Calculate XP based on duration (in seconds)
+      // Base rate: 1 XP per minute, with bonus for longer sessions
+      const minutes = duration / 60
+      let xpAmount = Math.floor(minutes)
+      
+      // Bonus for longer sessions
+      if (minutes >= 25) {
+        xpAmount += Math.floor(minutes / 5) * 5 // 5 XP bonus per 5 minutes over 25
+      }
+      
+      // Minimum XP for any completed session
+      xpAmount = Math.max(xpAmount, 10)
+
+      const newReward: XPReward = {
+        id: Date.now().toString(),
+        amount: xpAmount,
+        source: 'pomodoro',
+        description: roomName 
+          ? `${Math.floor(minutes)}-minute Pomodoro in ${roomName}`
+          : `${Math.floor(minutes)}-minute Pomodoro session`,
+        date: new Date().toISOString().split('T')[0],
+        sessionDuration: duration
+      }
+
+      setXpRewards(prev => [newReward, ...prev])
+      
+      // Update study data
+      const updatedRewards = [newReward, ...xpRewards]
+      calculateStudyData(studySessions, updatedRewards)
+
+      console.log(`🎉 Awarded ${xpAmount} XP for ${Math.floor(minutes)}-minute Pomodoro session!`)
+      
+      return xpAmount
+    } catch (error) {
+      console.error('Error awarding XP for Pomodoro:', error)
+      throw error
+    }
+  }
+
+  const awardXPForStudySession = async (duration: number, courseName?: string): Promise<number> => {
+    try {
+      const xpAmount = Math.floor(duration / 10) * 10 // 10 XP per 10 minutes
+
+      const newReward: XPReward = {
+        id: Date.now().toString(),
+        amount: xpAmount,
+        source: 'study_session',
+        description: courseName 
+          ? `${Math.floor(duration / 60)}-minute ${courseName} study session`
+          : `${Math.floor(duration / 60)}-minute study session`,
+        date: new Date().toISOString().split('T')[0],
+        sessionDuration: duration
+      }
+
+      setXpRewards(prev => [newReward, ...prev])
+      
+      // Update study data
+      const updatedRewards = [newReward, ...xpRewards]
+      calculateStudyData(studySessions, updatedRewards)
+
+      console.log(`🎉 Awarded ${xpAmount} XP for study session!`)
+      
+      return xpAmount
+    } catch (error) {
+      console.error('Error awarding XP for study session:', error)
+      throw error
+    }
+  }
+
+  const awardXPForDeadlineCompletion = async (deadlineTitle: string): Promise<number> => {
+    try {
+      const xpAmount = 100 // Fixed XP for completing deadlines
+
+      const newReward: XPReward = {
+        id: Date.now().toString(),
+        amount: xpAmount,
+        source: 'deadline_completion',
+        description: `Completed deadline: ${deadlineTitle}`,
+        date: new Date().toISOString().split('T')[0]
+      }
+
+      setXpRewards(prev => [newReward, ...prev])
+      
+      // Update study data
+      const updatedRewards = [newReward, ...xpRewards]
+      calculateStudyData(studySessions, updatedRewards)
+
+      console.log(`🎉 Awarded ${xpAmount} XP for completing deadline!`)
+      
+      return xpAmount
+    } catch (error) {
+      console.error('Error awarding XP for deadline completion:', error)
+      throw error
+    }
+  }
+
+  const awardStreakBonus = async (streakDays: number): Promise<number> => {
+    try {
+      const xpAmount = streakDays * 25 // 25 XP per day in streak
+
+      const newReward: XPReward = {
+        id: Date.now().toString(),
+        amount: xpAmount,
+        source: 'streak_bonus',
+        description: `${streakDays}-day study streak bonus`,
+        date: new Date().toISOString().split('T')[0]
+      }
+
+      setXpRewards(prev => [newReward, ...prev])
+      
+      // Update study data
+      const updatedRewards = [newReward, ...xpRewards]
+      calculateStudyData(studySessions, updatedRewards)
+
+      console.log(`🎉 Awarded ${xpAmount} XP for ${streakDays}-day streak!`)
+      
+      return xpAmount
+    } catch (error) {
+      console.error('Error awarding streak bonus:', error)
+      throw error
+    }
   }
 
   // Course methods
@@ -317,7 +480,9 @@ export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
 
       setStudySessions(prev => [newSession, ...prev])
-      calculateStudyData([newSession, ...studySessions])
+      
+      // Award XP for the study session
+      await awardXPForStudySession(session.duration)
     } catch (error) {
       console.error('Error adding study session:', error)
       throw error
@@ -331,6 +496,7 @@ export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       studySessions,
       studyData,
       loading,
+      xpRewards,
       addCourse,
       updateCourse,
       deleteCourse,
@@ -338,6 +504,10 @@ export const StudyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       updateDeadline,
       deleteDeadline,
       addStudySession,
+      awardXPForPomodoro,
+      awardXPForStudySession,
+      awardXPForDeadlineCompletion,
+      awardStreakBonus,
       refreshData,
       totalXP: studyData.totalXP,
       studyStreak: studyData.studyStreak,

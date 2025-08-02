@@ -44,11 +44,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   ]
 
   const handleLogout = async () => {
-    await logout()
-    navigate('/login')
+    try {
+      await logout()
+      navigate('/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
   }
 
-  if (!user) return null
+  // Debug logging
+  React.useEffect(() => {
+    console.log('Layout: User state:', !!user, 'Current path:', location.pathname)
+  }, [user, location.pathname])
+
+  if (!user) {
+    console.log('Layout: No user, returning null')
+    return null
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
@@ -62,6 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar */}
       <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col`}>
+        {/* Header */}
         <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-primary-600 to-primary-700 shadow-sm">
           <div className="flex items-center">
             <Brain className="h-8 w-8 text-white" />
@@ -75,7 +88,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </button>
         </div>
 
-        <nav className="flex-1 mt-6 px-3">
+        {/* Navigation */}
+        <nav className="flex-1 mt-6 px-3 space-y-2 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href
             const isCheatSheet = item.name === 'Cheat Sheet Generator'
@@ -84,7 +98,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link
                 key={item.name}
                 to={item.href}
-                className={`flex items-center px-3 py-2.5 mb-1 rounded-xl transition-all duration-200 ${
+                className={`flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
                   isActive
                     ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 shadow-sm border border-primary-200 dark:border-primary-700'
                     : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100'
@@ -109,12 +123,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           })}
         </nav>
 
-        <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+        {/* Logout Section - Fixed at bottom */}
+        <div className="mt-auto border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 p-4">
+          <div className="flex items-center mb-2">
+            <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>Signed in as</span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 mb-3">
+            <img
+              src={user.profile?.profilePicture || user.user_metadata?.profilePicture || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop'}
+              alt={user.profile?.name || user.user_metadata?.name || user.email}
+              className="h-6 w-6 rounded-full object-cover"
+            />
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
+              {user.profile?.name || user.user_metadata?.name || user.email?.split('@')[0] || 'User'}
+            </span>
+          </div>
           <button
             onClick={handleLogout}
-            className="flex items-center w-full px-3 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all duration-200"
+            className="flex items-center w-full px-3 py-3 text-gray-600 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-xl transition-all duration-200 group border border-gray-200 dark:border-gray-600"
+            title="Logout from StudyHive"
           >
-            <LogOut className="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" />
+            <LogOut className="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
             <span className="text-sm font-medium">Logout</span>
           </button>
         </div>
