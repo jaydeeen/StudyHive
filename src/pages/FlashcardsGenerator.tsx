@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { CreditCard, Upload, Sparkles, ChevronLeft, ChevronRight, RotateCw, Play, Pause } from 'lucide-react'
+import API from '../API'
 
 interface Flashcard {
   id: string
@@ -8,6 +9,10 @@ interface Flashcard {
   difficulty: 'easy' | 'medium' | 'hard'
 }
 
+let firstTime = true;
+
+
+
 const FlashcardsGenerator: React.FC = () => {
   const [lectureContent, setLectureContent] = useState('')
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
@@ -15,16 +20,77 @@ const FlashcardsGenerator: React.FC = () => {
   const [isFlipped, setIsFlipped] = useState(false)
   const [loading, setLoading] = useState(false)
   const [autoPlay, setAutoPlay] = useState(false)
+  const [notes, setNotes] = useState('')
+
+  let aiType = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free";
+  let prompt = "Task: You are given a block of text. Summarize its content into a JSON object with a maximum of 10 array items, each representing one distinct definition or concept. No explanation or your thought process needed in your response. Just the JSON output. Output Format: {\"definitions\": [{\"term\": \"string\", \"definition\":\"string\"} // .. up to 10 items ] } Input Text to Summarize: Text to summarise:" 
+ 
+  
+  let flashCards = [];
+
+  const onFlashCardGeneration = async () => {
+
+    setLoading(true)
+ 
+    
+
+      const response = await fetch("https://api.together.xyz/v1/chat/completions", {
+      method: 'POST',
+      body: JSON.stringify({model: aiType, messages: [{role: "user", content: prompt + notes}]}),
+      headers: {'Content-Type': 'application/json', 'Authorization': "Bearer " + API} 
+    });
+
+   
+
+    if (!response.ok) 
+    { 
+        console.error("Error12332131");
+    }
+    else {
+
+      const result = await response.json();
+      const resultJSON = JSON.parse(result['choices'][0]['message']['content']);
+      console.log(resultJSON)
+
+      handleGenerate();
+
+
+        for(let i = 0; i < 8; i++) {
+
+          const currentResult = resultJSON['definitions'][i];
+
+
+          const currentResultHeader = currentResult['term'];
+          const currentResultDef = currentResult['definition'];
+
+      
+          
+          flashCards.push({
+            id: i + 1,
+            front: currentResultDef,
+            back: currentResultHeader,
+            difficulty: 'easy'
+          });
+
+
+
+        }
+
+
+    }
+  }
 
   const handleGenerate = async () => {
     setLoading(true)
+
+    setIsFlipped(true);
     // Simulate AI processing
     setTimeout(() => {
       const mockFlashcards: Flashcard[] = [
         {
           id: '1',
           front: 'What is the Pythagorean theorem?',
-          back: 'a² + b² = c²\n\nIn a right triangle, the square of the hypotenuse equals the sum of squares of the other two sides.',
+          back: 'dsada',
           difficulty: 'easy'
         },
         {
@@ -52,7 +118,7 @@ const FlashcardsGenerator: React.FC = () => {
           difficulty: 'easy'
         }
       ]
-      setFlashcards(mockFlashcards)
+      setFlashcards(flashCards)
       setCurrentIndex(0)
       setIsFlipped(false)
       setLoading(false)
@@ -103,38 +169,28 @@ const FlashcardsGenerator: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Lecture Material</h2>
           
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Lecture Topic
-              </label>
-              <input
-                type="text"
-                value={lectureContent}
-                onChange={(e) => setLectureContent(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder="e.g., Introduction to Quantum Physics"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Upload Recording or Notes
-              </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary-400 transition-colors">
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 mb-2">Drop your files here or click to browse</p>
-                <p className="text-sm text-gray-500">Supports MP3, MP4, PDF, TXT</p>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".mp3,.mp4,.pdf,.txt"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleGenerate}
+          <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    📝 Paste Your Notes Here
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-base"
+                      placeholder="Copy and paste your entire study notes, lecture notes, or any study material here. The AI will analyze and organize it into a comprehensive cheat sheet."
+                    />
+                    <div className="absolute bottom-3 right-3 text-xs text-gray-400">
+                      {notes.length} characters
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    💡 Tip: Include all your notes, definitions, formulas, and key concepts
+                  </p>
+                </div>
+                <br></br>
+                <button
+              onClick={onFlashCardGeneration}
               disabled={loading}
               className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-3 rounded-lg font-medium hover:from-primary-700 hover:to-primary-800 transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
             >
@@ -150,11 +206,29 @@ const FlashcardsGenerator: React.FC = () => {
                 </>
               )}
             </button>
-          </div>
         </div>
 
         {/* Flashcard Display */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="bg-white rounded-xl shadow-sm p-6" onClick={(e) => {
+   
+
+          if(firstTime) {
+            firstTime = false;
+              document.getElementById("front-text").textContent = currentCard.front;
+
+              console.log(currentCard)
+          }
+   console.log(isFlipped)
+          if(isFlipped) {
+            document.getElementById("back-text").textContent = currentCard.front;
+
+            console.log(currentCard.front)
+          }
+          else {
+            document.getElementById("back-text").textContent = currentCard.back;
+            console.log(currentCard.back)
+          }
+           }} >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">
               {flashcards.length > 0 ? `Card ${currentIndex + 1} of ${flashcards.length}` : 'Flashcards'}
@@ -176,7 +250,7 @@ const FlashcardsGenerator: React.FC = () => {
               {/* Flashcard */}
               <div
                 className="relative h-64 cursor-pointer preserve-3d transition-transform duration-500"
-                style={{ transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+                // style={{ transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
                 onClick={() => setIsFlipped(!isFlipped)}
               >
                 {/* Front */}
@@ -186,15 +260,15 @@ const FlashcardsGenerator: React.FC = () => {
                     currentCard.difficulty === 'medium' ? 'bg-yellow-50 border-2 border-yellow-200' :
                     'bg-red-50 border-2 border-red-200'
                   }`}>
-                    <p className="text-xl font-medium text-gray-900">{currentCard.front}</p>
+                    <p className="text-xl font-medium text-gray-900" id="front-text">{currentCard.front}</p>
                     <RotateCw className="h-5 w-5 text-gray-400 mt-4" />
                   </div>
                 </div>
 
                 {/* Back */}
-                <div className="absolute inset-0 backface-hidden rotate-y-180">
+                <div className="absolute inset-0 backface-hidden">
                   <div className="h-full bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl p-8 flex items-center justify-center text-center shadow-lg">
-                    <p className="text-lg text-white whitespace-pre-line">{currentCard.back}</p>
+                    <p className="text-lg text-white whitespace-pre-line" id="back-text">{currentCard.back}</p>
                   </div>
                 </div>
               </div>
